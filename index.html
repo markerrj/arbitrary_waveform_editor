@@ -57,6 +57,7 @@
 let chart;
 let dataValues = new Array(2048).fill(0);
 let isDragging = false;
+let isDrawing = false;
 
 const canvas = document.getElementById('chart');
 
@@ -158,7 +159,10 @@ let lastValue = null;
 
 canvas.addEventListener('mousedown', (event) => {
     isDragging = true;
-    handleDraw(event); // draw immediately on click
+    if (!isDrawing) { 
+       requestAnimationFrame(handleDraw(event)); // draw on click
+       isDrawing = true;
+    }
 });
 
 canvas.addEventListener('mouseup', () => {
@@ -175,7 +179,10 @@ canvas.addEventListener('mouseleave', () => {
 
 canvas.addEventListener('mousemove', function(event) {
     if (!isDragging || !chart) return;
-    handleDraw(event);
+    if (!isDrawing) { 
+       requestAnimationFrame(handleDraw(event)); // draw on click
+       isDrawing = true;
+    }
 });
 
 function handleDraw(event) {
@@ -220,6 +227,8 @@ function handleDraw(event) {
     lastValue = value;
 
     chart.update('none');
+
+    isDrawing = false;
 }
 
 // --- Save CSV ---
