@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Arbitrary Waveform Editor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  html, body {
+    margin: 0;
+    font-family: sans-serif;
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+  }
+
+  input {
+     width: 300px;
+  }
+
+  input[type="file"]::file-selector-button, button {
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: blue;
+    color: white;
+    border: 0;
+    padding: 10px;
+  }
+
+  #controls {
+    flex: 0 1 auto;
+    padding: 10px;
+    background: #f0f0f0;
+  }
+
+  #chartContainer {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+  }
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+  <h2>Arbitrary Waveform Editor</h2>
+  <input type="file" id="fileInput" accept=".csv" />
+  <button id="saveBtn">Save CSV</button>
+</div>
+
+<div id="chartContainer">
+  <canvas id="chart"></canvas>
+</div>
+
+<script>
+let chart;
+let dataValues = [];
+let isDragging = false;
+
+const canvas = document.getElementById('chart');
+
+function updateCanvasSize() {
+   canvas.width = canvas.parentElement.clientWidth;
+   canvas.height = canvas.parentElement.clientHeight;
+}
+
+updateCanvasSize();
+
+window.addEventListener('resize', () => {
+  updateCanvasSize();
+});
+
+document.getElementById('fileInput').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const text = e.target.result;
+
+        const lines = text.split('\n');
+        const filteredLines = lines.filter(line => {
+            const trimmed = line.trim();
+            return trimmed !== '' && !trimmed.startsWith('#');
+        });
+
+        dataValues = filteredLines
+            .join(' ')
+            .split(/[\s,]+/)
+            .map(Number)
+            .filter(v => !isNaN(v));
+
+        if (dataValues.length !== 2048) {
+            alert("Expected 2048 values, got " + dataValues.length);
+            return;
+        }
+
+        drawChart();
+    };
+
+    reader.readAsText(file);
+});
+
+function drawChart() {
+    const ctx = canvas.getContext('2d');
+    const labels = dataValues.map((_, i) => i);
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataValues,
+                borderColor: 'blue',
+                borderWidth: 1,
+                pointRadius: 0,
+                tension: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+	    plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: false,
+                        text: 'Index (0 - 2047)'
+                    }
+                },
+                y: {
+                    min: -1,
+                    max: 1,
+                    title: {
+                        display: false,
+                        text: 'Value (-1 to 1)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+let lastIndex = null;
+let lastValue = null;
+
+// --- Mouse Interaction ---
+
+canvas.addEventListener('mousedown', (event) => {
+    isDragging = true;
+    handleDraw(event); // draw immediately on click
+});
+
+canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+    lastIndex = null;
+    lastValue = null;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    isDragging = false;
+    lastIndex = null;
+    lastValue = null;
+});
+
+canvas.addEventListener('mousemove', function(event) {
+    if (!isDragging || !chart) return;
+    handleDraw(event);
+});
+
+function handleDraw(event) {
+    const rect = canvas.getBoundingClientRect();
+
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+
+    let index = Math.round(xScale.getValueForPixel(x));
+    if (index < 0 || index >= dataValues.length) return;
+
+    let value = yScale.getValueForPixel(y);
+    value = Math.max(-1, Math.min(1, value));
+
+    // --- Interpolation logic ---
+    if (lastIndex !== null && Math.abs(index - lastIndex) > 1) {
+        const start = lastIndex;
+        const end = index;
+
+        const step = end > start ? 1 : -1;
+        const distance = Math.abs(end - start);
+
+        for (let i = 1; i < distance; i++) {
+            const t = i / distance; // interpolation factor 0→1
+            const interpIndex = start + i * step;
+
+            const interpValue =
+                lastValue + t * (value - lastValue);
+
+            dataValues[interpIndex] = interpValue;
+        }
+    }
+
+    // Set current point
+    dataValues[index] = value;
+
+    // Save last position
+    lastIndex = index;
+    lastValue = value;
+
+    chart.update('none');
+}
+
+// --- Save CSV ---
+
+document.getElementById('saveBtn').addEventListener('click', function() {
+    if (dataValues.length !== 2048) {
+        alert("No valid data to save.");
+        return;
+    }
+
+    const csvContent = dataValues.map(v => v.toString()).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'arbitrary_waveform.csv';
+    a.click();
+
+    URL.revokeObjectURL(url);
+});
+</script>
+
+</body>
+</html>
