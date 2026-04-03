@@ -1,9 +1,11 @@
 # Arbitrary Waveform Editor
 Simple web app to load, edit, and save arbitrary waveforms for use with a signal generator.
 
+https://markerrj.github.io/arbitrary_waveform_editor/
+
 * 2048 points
 * -1 to 1 values
-* Load existing CSV files with 2048 points, comments starting with # ignored
+* Load existing CSV files with 2048 points, lines starting with # ignored
 * Use a mouse pointer to drag and edit the displayed curve
 * Interpolation of mouse for smooth dragging
 * Save output .csv file
