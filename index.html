@@ -161,8 +161,11 @@ const dataValues = new Array(WAVEFORM_POINTS).fill(0);
 /** @type {boolean} True when user is dragging on the canvas */
 let isDragging = false;
 
-/** @type {boolean} True when user is actively drawing */
+/** @type {boolean} True when chart redraw is scheduled */
 let isDrawing = false;
+
+/** @type {boolean} True when canvas resize is scheduled */
+let isResizing = false;
 
 /** @type {number|null} Last drawn point index for interpolation */
 let lastDrawIndex = null;
@@ -187,7 +190,19 @@ const canvas = document.getElementById('chart');
 const updateCanvasSize = () => {
    canvas.width = canvas.parentElement.clientWidth;
    canvas.height = canvas.parentElement.clientHeight;
+   isResizing = false;
 };
+
+/**
+ * Handles resize with better performance and reliability by scheduling it
+ * for next animation frame.
+ */
+const resizeHandler = () => {
+   if (!isResizing) {
+      requestAnimationFrame(() => updateCanvaseSize());
+      isResizing = true;
+   }
+}
 
 /**
  * Initializes the application by setting up event listeners and drawing initial chart.
@@ -196,7 +211,7 @@ const initApp = () => {
    updateCanvasSize();
    drawChart();
 
-   window.addEventListener('resize', updateCanvasSize);
+   window.addEventListener('resize', resizeHandler);
    setupEventListeners();
 };
 
