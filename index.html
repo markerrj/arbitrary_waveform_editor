@@ -14,23 +14,86 @@
     height: 100%;
   }
 
+  /* Header section with title and GitHub banner */
+  #header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #393633;
+  }
+
+  /* GitHub Banner */
+  #githubBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #0d6efd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+    font-size: 14px;
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  #githubBanner:hover {
+    background-color: #0b5ed7;
+    box-shadow: 0 4px 16px rgba(13, 110, 253, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .github-icon {
+    width: 16px;
+    height: 16px;
+  }
+
   input {
      width: 300px;
   }
 
-  input[type="file"]::file-selector-button, button {
-    border-radius: 8px;
-    font-size: 16px;
-    background-color: blue;
+  input[type="file"]::file:mr4 {
+    margin-right: 8px;
+  }
+
+ 
+  /* Hide the default file input */
+  #fileInput {
+    display: none;
+  }
+
+  /* File button and Save CSV button styled to match GitHub banner */
+  .file-upload, button {
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #0d6efd;
     color: white;
     border: 0;
-    padding: 10px;
+    padding: 6px 12px;
+    font-weight: 500;
+    margin-left: 8px;
+    cursor: pointer;
+  }
+
+  .file-upload:hover, button:hover {
+    background-color: #0b5ed7;
+    box-shadow: 0 4px 16px rgba(13, 110, 253, 0.4);
+    transform: translateY(-1px);
   }
 
   #controls {
     flex: 0 1 auto;
-    padding: 10px;
+    padding: 15px 20px;
     background: #f0f0f0;
+    border-bottom: 1px solid #dee2e6;
   }
 
   #chartContainer {
@@ -47,9 +110,21 @@
 
 <body>
 
-<div id="controls">
+<!-- Header section with title and GitHub banner -->
+<header id="header">
   <h2>Arbitrary Waveform Editor</h2>
-  <input type="file" id="fileInput" onclick="this.value=null" accept=".csv" />
+  <a href="https://github.com/markerrj/arbitrary_waveform_editor" id="githubBanner" target="_blank" rel="noopener noreferrer">
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#fff" class="bi bi-github" viewBox="0 0 16 16">
+       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+    </svg>
+    <span>Fork Me on Github</span>
+  </a>
+</header>
+
+<div id="controls">
+  <input type="file" id="fileInput" onclick="this.value=null" accept=".csv" style="display: none;" />
+  <label id="fileBtn" class="file-upload">Choose File</label>
   <button id="saveBtn">Save CSV</button>
 </div>
 
@@ -160,6 +235,10 @@ let lastIndex = null;
 let lastValue = null;
 
 // --- Interaction (Mouse and Touch) ---
+
+document.getElementById('fileBtn').addEventListener('click', function() {
+  document.getElementById('fileInput').click();
+});
 
 function getCoordinates(event) {
     if (event.touches && event.touches.length > 0) {
