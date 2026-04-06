@@ -64,7 +64,7 @@
     margin-right: 8px;
   }
 
- 
+
   /* Hide the default file input */
   #fileInput {
     display: none;
@@ -133,251 +133,347 @@
 </div>
 
 <script>
-let chart;
-let dataValues = new Array(2048).fill(0);
+/**
+ * Arbitrary Waveform Editor
+ * 
+ * A web-based application for creating and editing 2048-point waveforms
+ * with values ranging from -1 to 1 for use with signal generators.
+ */
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const WAVEFORM_POINTS = 2048;
+const MIN_VALUE = -1;
+const MAX_VALUE = 1;
+
+// ============================================================================
+// State Variables
+// ============================================================================
+
+/** @type {Chart|null} */
+let chart = null;
+
+/** @type {number[]} Waveform data points */
+const dataValues = new Array(WAVEFORM_POINTS).fill(0);
+
+/** @type {boolean} True when user is dragging on the canvas */
 let isDragging = false;
+
+/** @type {boolean} True when user is actively drawing */
 let isDrawing = false;
 
+/** @type {number|null} Last drawn point index for interpolation */
+let lastDrawIndex = null;
+
+/** @type {number|null} Last drawn point value for interpolation */
+let lastDrawValue = null;
+
+// ============================================================================
+// DOM Elements
+// ============================================================================
+
+/** @type {HTMLCanvasElement} */
 const canvas = document.getElementById('chart');
 
-function updateCanvasSize() {
+// ============================================================================
+// Initialization
+// ============================================================================
+
+/**
+ * Updates canvas dimensions to match parent container size.
+ */
+const updateCanvasSize = () => {
    canvas.width = canvas.parentElement.clientWidth;
    canvas.height = canvas.parentElement.clientHeight;
-}
+};
 
-updateCanvasSize();
-drawChart();
+/**
+ * Initializes the application by setting up event listeners and drawing initial chart.
+ */
+const initApp = () => {
+   updateCanvasSize();
+   drawChart();
 
-window.addEventListener('resize', () => {
-  updateCanvasSize();
-});
+   window.addEventListener('resize', updateCanvasSize);
+   setupEventListeners();
+};
 
-document.getElementById('fileInput').addEventListener('change', function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+// ============================================================================
+// Chart Functions
+// ============================================================================
 
-    const reader = new FileReader();
+/**
+ * Creates and renders the waveform chart using Chart.js.
+ */
+const drawChart = () => {
+   const ctx = canvas.getContext('2d');
+   const labels = dataValues.map((_, index) => index);
 
-    reader.onload = function(e) {
-        const text = e.target.result;
+   if (chart) {
+      chart.destroy();
+   }
 
-        const lines = text.split('\n');
-        const filteredLines = lines.filter(line => {
-            const trimmed = line.trim();
-            return trimmed !== '' && !trimmed.startsWith('#');
-        });
-
-        dataValues = filteredLines
-            .join(' ')
-            .split(/[\s,]+/)
-            .map(Number)
-            .filter(v => !isNaN(v));
-
-        if (dataValues.length !== 2048) {
-            alert("Expected 2048 values, got " + dataValues.length);
-            return;
-        }
-
-        drawChart();
-    };
-
-    reader.readAsText(file);
-});
-
-function drawChart() {
-    const ctx = canvas.getContext('2d');
-    const labels = dataValues.map((_, i) => i);
-
-    if (chart) chart.destroy();
-
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: dataValues,
-                borderColor: 'blue',
-                borderWidth: 1,
-                pointRadius: 0,
-                tension: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-	    plugins: {
-              legend: {
-                display: false
-              }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: false,
-                        text: 'Index (0 - 2047)'
-                    }
-                },
-                y: {
-                    min: -1,
-                    max: 1,
-                    title: {
-                        display: false,
-                        text: 'Value (-1 to 1)'
-                    }
-                }
+   chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+         labels: labels,
+         datasets: [{
+            data: dataValues,
+            borderColor: 'blue',
+            borderWidth: 1,
+            pointRadius: 0,
+            tension: 0
+         }]
+      },
+      options: {
+         responsive: true,
+         maintainAspectRatio: false,
+         animation: false,
+         plugins: {
+            legend: {
+               display: false
             }
-        }
-    });
-}
+         },
+         scales: {
+            x: {
+               title: {
+                  display: false,
+                  text: 'Index (0 - 2047)'
+               }
+            },
+            y: {
+               min: MIN_VALUE,
+               max: MAX_VALUE,
+               title: {
+                  display: false,
+                  text: 'Value (-1 to 1)'
+               }
+            }
+         }
+      }
+   });
+};
 
-let lastIndex = null;
-let lastValue = null;
+// ============================================================================
+// File I/O Functions
+// ============================================================================
 
-// --- Interaction (Mouse and Touch) ---
+/**
+ * Parses CSV file content and extracts numeric values.
+ * @param {string} text - Raw CSV file content
+ * @returns {number[]} Array of parsed numeric values
+ */
+const parseCSVContent = (text) => {
+   const lines = text.split('\n');
+   const filteredLines = lines.filter((line) => {
+      const trimmed = line.trim();
+      return trimmed !== '' && !trimmed.startsWith('#');
+   });
 
-document.getElementById('fileBtn').addEventListener('click', function() {
-  document.getElementById('fileInput').click();
-});
+   return filteredLines
+      .join(' ')
+      .split(/[\s,]+/)
+      .map(Number)
+      .filter((value) => !isNaN(value));
+};
 
-function getCoordinates(event) {
-    if (event.touches && event.touches.length > 0) {
-        return { clientX: event.touches[0].clientX, clientY: event.touches[0].clientY };
-    }
-    return { clientX: event.clientX, clientY: event.clientY };
-}
+/**
+ * Handles file input change event to load CSV waveform data.
+ * @param {Event} event - File input change event
+ */
+const handleFileInput = (event) => {
+   const file = /** @type {HTMLInputElement} */ (event.target).files?.[0];
+   if (!file) return;
 
-canvas.addEventListener('mousedown', (event) => {
-    isDragging = true;
-    if (!isDrawing) {
-       requestAnimationFrame(handleDraw(event)); // draw on click
-       isDrawing = true;
-    }
-});
+   const reader = new FileReader();
 
-canvas.addEventListener('mouseup', (event) => {
-    isDragging = false;
-    lastIndex = null;
-    lastValue = null;
-});
+   reader.onload = (e) => {
+      const text = /** @type {string} */ (e.target?.result);
+      dataValues.length = 0;
+      
+      const parsedValues = parseCSVContent(text);
 
-canvas.addEventListener('mouseleave', (event) => {
-    isDragging = false;
-    lastIndex = null;
-    lastValue = null;
-});
+      if (parsedValues.length !== WAVEFORM_POINTS) {
+         alert(`Expected ${WAVEFORM_POINTS} values, got ${parsedValues.length}`);
+         return;
+      }
 
-canvas.addEventListener('mousemove', function(event) {
-    if (!isDragging || !chart) return;
-    if (!isDrawing) {
-       requestAnimationFrame(handleDraw(event)); // draw on click
-       isDrawing = true;
-    }
-});
+      dataValues.push(...parsedValues);
+      drawChart();
+   };
 
-canvas.addEventListener('touchstart', (event) => {
-    event.preventDefault(); // prevent scrolling/zooming
-    isDragging = true;
-    if (!isDrawing) {
-       requestAnimationFrame(handleDraw(event)); // draw on touch
-       isDrawing = true;
-    }
-});
+   reader.readAsText(file);
+};
 
-canvas.addEventListener('touchend', (event) => {
-    event.preventDefault();
-    isDragging = false;
-    lastIndex = null;
-    lastValue = null;
-});
+/**
+ * Saves the current waveform data as a CSV file.
+ */
+const saveCSV = () => {
+   if (dataValues.length !== WAVEFORM_POINTS) {
+      alert('No valid data to save.');
+      return;
+   }
 
-canvas.addEventListener('touchcancel', (event) => {
-    event.preventDefault();
-    isDragging = false;
-    lastIndex = null;
-    lastValue = null;
-});
+   const csvContent = dataValues.map((value) => value.toString()).join('\n');
+   const blob = new Blob([csvContent], { type: 'text/csv' });
+   const url = URL.createObjectURL(blob);
 
-canvas.addEventListener('touchmove', function(event) {
-    event.preventDefault(); // prevent scrolling/zooming
-    if (!isDragging || !chart) return;
-    if (!isDrawing) {
-       requestAnimationFrame(handleDraw(event)); // draw on touch
-       isDrawing = true;
-    }
-});
+   const link = document.createElement('a');
+   link.href = url;
+   link.download = 'arbitrary_waveform.csv';
+   link.click();
 
-function handleDraw(event) {
-    const rect = canvas.getBoundingClientRect();
+   URL.revokeObjectURL(url);
+};
 
-    // Support both mouse and touch events
-    const coords = getCoordinates(event);
-    const clientX = coords.clientX;
-    const clientY = coords.clientY;
+// ============================================================================
+// Interaction Functions
+// ============================================================================
 
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+/**
+ * Extracts client coordinates from both mouse and touch events.
+ * @param {MouseEvent|TouchEvent} event - Input event
+ * @returns {{clientX: number, clientY: number}} Coordinates object
+ */
+const getCoordinates = (event) => {
+   if (event.touches && event.touches.length > 0) {
+      return {
+         clientX: event.touches[0].clientX,
+         clientY: event.touches[0].clientY
+      };
+   }
+   return {
+      clientX: /** @type {MouseEvent} */ (event).clientX,
+      clientY: /** @type {MouseEvent} */ (event).clientY
+   };
+};
 
-    const xScale = chart.scales.x;
-    const yScale = chart.scales.y;
+/**
+ * Handles drawing/interpolation when user drags on the canvas.
+ * @param {MouseEvent|TouchEvent} event - Input event
+ */
+const handleDraw = (event) => {
+   if (!chart) return;
 
-    let index = Math.round(xScale.getValueForPixel(x));
-    if (index < 0 || index >= dataValues.length) return;
+   const rect = canvas.getBoundingClientRect();
+   const coords = getCoordinates(event);
 
-    let value = yScale.getValueForPixel(y);
-    value = Math.max(-1, Math.min(1, value));
+   const x = coords.clientX - rect.left;
+   const y = coords.clientY - rect.top;
 
-    // --- Interpolation logic ---
-    if (lastIndex !== null && Math.abs(index - lastIndex) > 1) {
-        const start = lastIndex;
-        const end = index;
+   const xScale = chart.scales.x;
+   const yScale = chart.scales.y;
 
-        const step = end > start ? 1 : -1;
-        const distance = Math.abs(end - start);
+   let index = Math.round(xScale.getValueForPixel(x));
+   if (index < 0 || index >= dataValues.length) return;
 
-        for (let i = 1; i < distance; i++) {
-            const t = i / distance; // interpolation factor 0→1
-            const interpIndex = start + i * step;
+   let value = yScale.getValueForPixel(y);
+   value = Math.max(MIN_VALUE, Math.min(MAX_VALUE, value));
 
-            const interpValue =
-                lastValue + t * (value - lastValue);
+   // Interpolation logic for smooth curve editing
+   if (lastDrawIndex !== null && Math.abs(index - lastDrawIndex) > 1) {
+      const start = lastDrawIndex;
+      const end = index;
 
-            dataValues[interpIndex] = interpValue;
-        }
-    }
+      const step = end > start ? 1 : -1;
+      const distance = Math.abs(end - start);
 
-    // Set current point
-    dataValues[index] = value;
+      for (let i = 1; i < distance; i++) {
+         const t = i / distance; // interpolation factor 0→1
+         const interpIndex = start + i * step;
+         const interpValue = lastDrawValue + t * (value - lastDrawValue);
 
-    // Save last position
-    lastIndex = index;
-    lastValue = value;
+         dataValues[interpIndex] = interpValue;
+      }
+   }
 
-    chart.update('none');
+   // Set current point and update state
+   dataValues[index] = value;
+   lastDrawIndex = index;
+   lastDrawValue = value;
 
-    isDrawing = false;
-}
+   chart.update('none');
+   isDrawing = false;
+};
 
-// --- Save CSV ---
+/**
+ * Resets drawing state when drag ends.
+ */
+const resetDrawingState = () => {
+   isDragging = false;
+   lastDrawIndex = null;
+   lastDrawValue = null;
+};
 
-document.getElementById('saveBtn').addEventListener('click', function() {
-    if (dataValues.length !== 2048) {
-        alert("No valid data to save.");
-        return;
-    }
+/**
+ * Handles drawing with requestAnimationFrame for smooth updates.
+ * @param {MouseEvent|TouchEvent} event - Input event
+ */
+const handleDrawWithAnimationFrame = (event) => {
+   if (!isDrawing) {
+      requestAnimationFrame(() => handleDraw(event));
+      isDrawing = true;
+   }
+};
 
-    const csvContent = dataValues.map(v => v.toString()).join('\n');
+/**
+ * Sets up all event listeners for the application.
+ */
+const setupEventListeners = () => {
+   // File input handling
+   document.getElementById('fileInput').addEventListener('change', handleFileInput);
+   document.getElementById('fileBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+   });
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+   // Save button handling
+   document.getElementById('saveBtn').addEventListener('click', saveCSV);
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'arbitrary_waveform.csv';
-    a.click();
+   // Mouse events
+   canvas.addEventListener('mousedown', (event) => {
+      isDragging = true;
+      handleDrawWithAnimationFrame(event);
+   });
 
-    URL.revokeObjectURL(url);
-});
+   canvas.addEventListener('mouseup', resetDrawingState);
+   canvas.addEventListener('mouseleave', resetDrawingState);
+
+   canvas.addEventListener('mousemove', (event) => {
+      if (!isDragging || !chart) return;
+      handleDrawWithAnimationFrame(event);
+   });
+
+   // Touch events
+   canvas.addEventListener('touchstart', (event) => {
+      event.preventDefault();
+      isDragging = true;
+      handleDrawWithAnimationFrame(event);
+   });
+
+   canvas.addEventListener('touchend', (event) => {
+      event.preventDefault();
+      resetDrawingState();
+   });
+
+   canvas.addEventListener('touchcancel', (event) => {
+      event.preventDefault();
+      resetDrawingState();
+   });
+
+   canvas.addEventListener('touchmove', (event) => {
+      event.preventDefault();
+      if (!isDragging || !chart) return;
+      handleDrawWithAnimationFrame(event);
+   });
+};
+
+// ============================================================================
+// Start Application
+// ============================================================================
+
+initApp();
 </script>
 
 </body>
