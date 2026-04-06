@@ -38,6 +38,10 @@
     position: relative;
     overflow: hidden;
   }
+
+  #chart {
+    touch-action: none;
+  }
 </style>
 </head>
 
@@ -155,23 +159,30 @@ function drawChart() {
 let lastIndex = null;
 let lastValue = null;
 
-// --- Mouse Interaction ---
+// --- Interaction (Mouse and Touch) ---
+
+function getCoordinates(event) {
+    if (event.touches && event.touches.length > 0) {
+        return { clientX: event.touches[0].clientX, clientY: event.touches[0].clientY };
+    }
+    return { clientX: event.clientX, clientY: event.clientY };
+}
 
 canvas.addEventListener('mousedown', (event) => {
     isDragging = true;
-    if (!isDrawing) { 
+    if (!isDrawing) {
        requestAnimationFrame(handleDraw(event)); // draw on click
        isDrawing = true;
     }
 });
 
-canvas.addEventListener('mouseup', () => {
+canvas.addEventListener('mouseup', (event) => {
     isDragging = false;
     lastIndex = null;
     lastValue = null;
 });
 
-canvas.addEventListener('mouseleave', () => {
+canvas.addEventListener('mouseleave', (event) => {
     isDragging = false;
     lastIndex = null;
     lastValue = null;
@@ -179,8 +190,40 @@ canvas.addEventListener('mouseleave', () => {
 
 canvas.addEventListener('mousemove', function(event) {
     if (!isDragging || !chart) return;
-    if (!isDrawing) { 
+    if (!isDrawing) {
        requestAnimationFrame(handleDraw(event)); // draw on click
+       isDrawing = true;
+    }
+});
+
+canvas.addEventListener('touchstart', (event) => {
+    event.preventDefault(); // prevent scrolling/zooming
+    isDragging = true;
+    if (!isDrawing) {
+       requestAnimationFrame(handleDraw(event)); // draw on touch
+       isDrawing = true;
+    }
+});
+
+canvas.addEventListener('touchend', (event) => {
+    event.preventDefault();
+    isDragging = false;
+    lastIndex = null;
+    lastValue = null;
+});
+
+canvas.addEventListener('touchcancel', (event) => {
+    event.preventDefault();
+    isDragging = false;
+    lastIndex = null;
+    lastValue = null;
+});
+
+canvas.addEventListener('touchmove', function(event) {
+    event.preventDefault(); // prevent scrolling/zooming
+    if (!isDragging || !chart) return;
+    if (!isDrawing) {
+       requestAnimationFrame(handleDraw(event)); // draw on touch
        isDrawing = true;
     }
 });
@@ -188,8 +231,13 @@ canvas.addEventListener('mousemove', function(event) {
 function handleDraw(event) {
     const rect = canvas.getBoundingClientRect();
 
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    // Support both mouse and touch events
+    const coords = getCoordinates(event);
+    const clientX = coords.clientX;
+    const clientY = coords.clientY;
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
 
     const xScale = chart.scales.x;
     const yScale = chart.scales.y;
